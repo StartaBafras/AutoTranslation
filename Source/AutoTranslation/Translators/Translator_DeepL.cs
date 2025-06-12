@@ -39,16 +39,26 @@ namespace AutoTranslation.Translators
             }
             try
             {
-                translated = Parse(GetResponseUnsafe(url, new List<IMultipartFormSection>()
-                {
-                    new MultipartFormDataSection("auth_key", APIKey),
-                    new MultipartFormDataSection("text", EscapePlaceholders(text)),
-                    //new MultipartFormDataSection("source_lang", "EN"),
-                    new MultipartFormDataSection("target_lang", TranslateLanguage),
-                    new MultipartFormDataSection("preserve_formatting", "true"),
-                    new MultipartFormDataSection("tag_handling", "xml"),
-                    new MultipartFormDataSection("ignore_tags", "x")
-                }), out var detectedLang);
+                //translated = Parse(GetResponseUnsafe(url, APIKey, new List<IMultipartFormSection>()
+                //{
+                //    //new MultipartFormDataSection("auth_key", APIKey),
+                //    new MultipartFormDataSection("text", EscapePlaceholders(text)),
+                //    //new MultipartFormDataSection("source_lang", "EN"),
+                //    new MultipartFormDataSection("target_lang", TranslateLanguage),
+                //    new MultipartFormDataSection("preserve_formatting", "true"),
+                //    new MultipartFormDataSection("tag_handling", "xml"),
+                //    new MultipartFormDataSection("ignore_tags", "x")
+                //}), out var detectedLang);
+                translated = Parse(GetResponseUnsafe(url, APIKey, $@"
+                    {{
+
+                        ""text"": [""{EscapePlaceholders(text)}""],
+                        ""target_lang"": ""{TranslateLanguage}"",
+                        ""preserve_formatting"": true,
+                        ""tag_handling"": ""xml"",
+                        ""ignore_tags"": [""x""]
+                    }}
+                "), out var detectedLang);
                 translated = detectedLang == TranslateLanguage ? text : UnEscapePlaceholders(translated);
 
                 return true;
@@ -81,9 +91,15 @@ namespace AutoTranslation.Translators
         protected APIKeyRotater rotater = null;
 
 
-        public static string GetResponseUnsafe(string url, List<IMultipartFormSection> form)
+        public static string GetResponseUnsafe(string url, string apiKey, string body)
         {
-            var request = UnityWebRequest.Post(url, form);
+            var request = new UnityWebRequest(url, "POST");
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(body);
+            request.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            request.downloadHandler = new DownloadHandlerBuffer();
+
+            request.SetRequestHeader("Content-Type", "application/json");
+            request.SetRequestHeader("Authorization", $"DeepL-Auth-Key {apiKey}");
 
             var asyncOperation = request.SendWebRequest();
             while (!asyncOperation.isDone)
@@ -123,6 +139,7 @@ namespace AutoTranslation.Translators
                 return "EN";
             }
 
+            lang = lang.Split('_').First();
             if (_languageMap.TryGetValue(lang, out var result))
                 return result;
 

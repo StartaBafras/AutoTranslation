@@ -105,6 +105,7 @@ namespace AutoTranslation
             sb.Append(len);
             handle = sb.ToString();
             handle = handle.Trim('_');
+            handle = handle.Trim('-'); // for HSK
             if (!handle.NullOrEmpty() && char.IsDigit(handle[0]))
             {
                 handle = "_" + handle;

@@ -161,7 +161,12 @@ namespace AutoTranslation.Translators
                 return "en";
             }
 
-            if (!TranslateLanguageGetter.TryGetValue(LanguageDatabase.activeLanguage.LegacyFolderName, out var res))
+            var lang = LanguageDatabase.activeLanguage.LegacyFolderName;
+
+
+            lang = lang.Split('_').First();
+
+            if (!TranslateLanguageGetter.TryGetValue(lang, out var res))
             {
                 Log.Error(AutoTranslation.LogPrefix + $"Unsupported language: {LanguageDatabase.activeLanguage.LegacyFolderName}");
                 res = "en";
