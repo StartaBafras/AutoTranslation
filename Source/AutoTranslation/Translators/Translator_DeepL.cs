@@ -32,6 +32,11 @@ namespace AutoTranslation.Translators
 
         public override bool TryTranslate(string text, out string translated)
         {
+            return TryTranslate(text, out translated, false);
+        }
+
+        public override bool TryTranslate(string text, out string translated, bool skipRetry)
+        {
             if (string.IsNullOrEmpty(text))
             {
                 translated = string.Empty;
@@ -39,16 +44,6 @@ namespace AutoTranslation.Translators
             }
             try
             {
-                //translated = Parse(GetResponseUnsafe(url, APIKey, new List<IMultipartFormSection>()
-                //{
-                //    //new MultipartFormDataSection("auth_key", APIKey),
-                //    new MultipartFormDataSection("text", EscapePlaceholders(text)),
-                //    //new MultipartFormDataSection("source_lang", "EN"),
-                //    new MultipartFormDataSection("target_lang", TranslateLanguage),
-                //    new MultipartFormDataSection("preserve_formatting", "true"),
-                //    new MultipartFormDataSection("tag_handling", "xml"),
-                //    new MultipartFormDataSection("ignore_tags", "x")
-                //}), out var detectedLang);
                 translated = Parse(GetResponseUnsafe(url, APIKey, $@"
                     {{
 
@@ -58,7 +53,7 @@ namespace AutoTranslation.Translators
                         ""tag_handling"": ""xml"",
                         ""ignore_tags"": [""x""]
                     }}
-                "), out var detectedLang);
+                ", skipRetry), out var detectedLang);
                 translated = detectedLang == TranslateLanguage ? text : UnEscapePlaceholders(translated);
 
                 return true;
@@ -90,30 +85,93 @@ namespace AutoTranslation.Translators
 
         protected APIKeyRotater rotater = null;
 
-
-        public static string GetResponseUnsafe(string url, string apiKey, string body)
+        public static string GetResponseUnsafe(string url, string apiKey, string body, bool skipRetry = false)
         {
-            var request = new UnityWebRequest(url, "POST");
-            byte[] bodyRaw = Encoding.UTF8.GetBytes(body);
-            request.uploadHandler = new UploadHandlerRaw(bodyRaw);
-            request.downloadHandler = new DownloadHandlerBuffer();
+            const int maxRetries = 5;
+            const int initialDelayMs = 1000; // 1 second
+            const int maxDelayMs = 60000; // 60 seconds
 
-            request.SetRequestHeader("Content-Type", "application/json");
-            request.SetRequestHeader("Authorization", $"DeepL-Auth-Key {apiKey}");
+            var rand = new Random();
+            var retryCount = 0;
 
-            var asyncOperation = request.SendWebRequest();
-            while (!asyncOperation.isDone)
+            while (true)
             {
-                Thread.Sleep(1);
-            }
+                var request = new UnityWebRequest(url, "POST");
+                byte[] bodyRaw = Encoding.UTF8.GetBytes(body);
+                request.uploadHandler = new UploadHandlerRaw(bodyRaw);
+                request.downloadHandler = new DownloadHandlerBuffer();
 
-            if (request.isNetworkError || request.isHttpError)
-            {
-                throw new Exception($"Web error: {request.error}");
-            }
+                request.SetRequestHeader("Content-Type", "application/json");
+                request.SetRequestHeader("Authorization", $"DeepL-Auth-Key {apiKey}");
 
-            return request.downloadHandler.text;
+                try
+                {
+                    var asyncOperation = request.SendWebRequest();
+                    while (!asyncOperation.isDone)
+                    {
+                        Thread.Sleep(1);
+                    }
+
+                    // Check for HTTP 429 specifically
+                    if (request.responseCode == 429)
+                    {
+                        // If skipRetry is true, don't attempt to retry
+                        if (skipRetry)
+                        {
+                            Log.Warning(AutoTranslation.LogPrefix + "DeepL API rate limit exceeded (HTTP 429). Skip retry flag is set, failing immediately.");
+                            throw new Exception($"Web error: Rate limit exceeded (HTTP 429) - retry skipped");
+                        }
+                        
+                        // Too many requests - handle with exponential backoff
+                        if (retryCount >= maxRetries)
+                        {
+                            Log.Error(AutoTranslation.LogPrefix + $"DeepL API rate limit exceeded. Maximum retries ({maxRetries}) reached.");
+                            throw new Exception($"Web error: Rate limit exceeded (HTTP 429) - maximum retries reached");
+                        }
+
+                        retryCount++;
+
+                        // Calculate delay with exponential backoff and jitter
+                        int delayMs = (int)Math.Min(maxDelayMs, initialDelayMs * Math.Pow(2, retryCount - 1));
+                        // Add jitter (±20% randomness) to avoid thundering herd problem
+                        delayMs = (int)(delayMs * (0.8 + 0.4 * rand.NextDouble()));
+
+                        Log.Warning(AutoTranslation.LogPrefix + $"DeepL API rate limit exceeded (HTTP 429). Retrying in {delayMs / 1000.0:F1} seconds (attempt {retryCount}/{maxRetries})");
+
+                        // Dispose of the current request before sleeping
+                        request.Dispose();
+
+                        Thread.Sleep(delayMs);
+                        continue; // Retry the request
+                    }
+                    else if (request.isNetworkError || request.isHttpError)
+                    {
+                        throw new Exception($"Web error: {request.error}");
+                    }
+
+                    // Success - return the response
+                    return request.downloadHandler.text;
+                }
+                catch (Exception ex)
+                {
+                    // For other exceptions that aren't HTTP 429, propagate them up
+                    if (request.responseCode != 429)
+                    {
+                        throw;
+                    }
+
+                    // If the exception was already handled in the HTTP 429 block, 
+                    // we shouldn't reach here, but just in case
+                    throw new Exception($"Error during DeepL API request: {ex.Message}", ex);
+                }
+                finally
+                {
+                    // Ensure request is properly disposed
+                    request.Dispose();
+                }
+            }
         }
+
         public static string Parse(string text, out string detectedLang)
         {
             detectedLang = text.GetStringValueFromJson("detected_source_language");

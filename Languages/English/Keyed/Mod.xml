@@ -34,6 +34,10 @@
     <AT_Setting_ResetTranslationCache>Delete the translation caches</AT_Setting_ResetTranslationCache>
     <AT_Setting_ToggleAll>Toggle all</AT_Setting_ToggleAll>
 
+    <AT_Setting_Retranslate>Retranslate</AT_Setting_Retranslate>
+    <AT_Message_RetranslateFailed>Cannot retranslate while translations are in progress.</AT_Message_RetranslateFailed>
+    <AT_Message_RetranslateSuccess>{0} has been queued for retranslation.</AT_Message_RetranslateSuccess>
+
     <AT_Message_ResetDefCache>Def cache has been initialized!</AT_Message_ResetDefCache>
     <AT_Message_ResetTranslationCache>The translation caches are deleted, please restart the game to start the translation again.</AT_Message_ResetTranslationCache>
     <AT_Message_WhiteList_Failed>The translation is still in progress and will not be applied in real-time. You will need to retry after the translation is complete, or restart the game, for the changes to take effect.</AT_Message_WhiteList_Failed>

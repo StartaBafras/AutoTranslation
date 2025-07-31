@@ -28,6 +28,11 @@ namespace AutoTranslation.Translators
 
         public bool TryTranslate(string text, out string translated)
         {
+            return TryTranslate(text, out translated, false);
+        }
+
+        public bool TryTranslate(string text, out string translated, bool skipRetry)
+        {
             if (string.IsNullOrEmpty(text))
             {
                 translated = string.Empty;
@@ -54,11 +59,20 @@ namespace AutoTranslation.Translators
                 var status = (int?)(e.Response as HttpWebResponse)?.StatusCode;
                 if (status == 429)
                 {
+                    // skipRetry가 true이면 재시도하지 않고 즉시 실패 처리
+                    if (skipRetry)
+                    {
+                        Log.Warning(AutoTranslation.LogPrefix + $"{Name}: API request limit reached! Skip retry flag is set, failing immediately.");
+                        translated = text;
+                        return false;
+                    }
+                    
+                    // 백그라운드 스레드인 경우에만 재시도
                     if (Thread.CurrentThread.IsBackground)
                     {
                         Log.Warning(AutoTranslation.LogPrefix + $"{Name}: API request limit reached! Wait 1 minute and try again.... (NOTE: Free tier is not recommended, because it only allows for a few(~10) requests per minute.)");
                         Thread.Sleep(TimeSpan.FromMinutes(1));
-                        return TryTranslate(text, out translated);
+                        return TryTranslate(text, out translated, skipRetry);
                     }
 
                     Log.Warning(AutoTranslation.LogPrefix + $"{Name}: API request limit reached! (NOTE: Free tier is not recommended, because it only allows for a few(~10) requests per minute.)");
@@ -72,7 +86,6 @@ namespace AutoTranslation.Translators
                     translated = text;
                     return false;
                 }
-
             }
             catch (Exception e)
             {

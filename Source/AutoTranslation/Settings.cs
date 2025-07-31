@@ -19,7 +19,7 @@ namespace AutoTranslation
         public static string APIKey = string.Empty;
         public static string TranslatorName = "Google";
         public static bool ShowOriginal = false;
-        public static HashSet<string> WhiteListModPackageIds = new HashSet<string>();
+        public static HashSet<string> BlackListModPackageIds = new HashSet<string>();
 
         public static string SelectedModel = string.Empty;
         public static string CustomBaseURL = string.Empty;
@@ -42,8 +42,8 @@ namespace AutoTranslation
             Scribe_Values.Look(ref SelectedModel, "AutoTranslation_SelectedModel", string.Empty);
             Scribe_Values.Look(ref CustomBaseURL, "AutoTranslation_CustomBaseURL", string.Empty);
             Scribe_Values.Look(ref CustomPrompt, "AutoTranslation_CustomPrompt", string.Empty);
-            Scribe_Collections.Look(ref WhiteListModPackageIds, "AutoTranslation_WhiteListModPackageIds", LookMode.Value);
-            if (WhiteListModPackageIds == null) WhiteListModPackageIds = new HashSet<string>();
+            Scribe_Collections.Look(ref BlackListModPackageIds, "AutoTranslation_WhiteListModPackageIds", LookMode.Value);
+            if (BlackListModPackageIds == null) BlackListModPackageIds = new HashSet<string>();
         }
 
         public void DoSettingsWindowContents(Rect inRect)
@@ -73,7 +73,8 @@ namespace AutoTranslation
 
             var outRect = new Rect(0f, inRect.y + 20f, inRect.width - 10f, inRect.height - 20f);
             var listRect = new Rect(0f, 0f, outRect.width - 50f, entryHeight * cntEntry);
-            var labelRect = new Rect(entryHeight + 10f, 0f, listRect.width - 40f, entryHeight);
+            var labelRect = new Rect(entryHeight + 10f, 0f, listRect.width - 40f - 70f, entryHeight); // 버튼을 위한 공간 확보
+            var retranslateButtonRect = new Rect(labelRect.x + labelRect.width, 0f, 70f, entryHeight);
 
             var descRect = new Rect(labelRect.x, outRect.y - 22f, labelRect.width, 22f);
             var toggleRect =
@@ -85,38 +86,36 @@ namespace AutoTranslation
             Widgets.Label(descRect, "AT_Setting_WhiteList".Translate());
             if (Widgets.ButtonText(toggleRect, "AT_Setting_ToggleAll".Translate()))
             {
-                if (WhiteListModPackageIds.Count == AllMods.Count)
+                if (BlackListModPackageIds.Count == AllMods.Count)
                 {
-                    WhiteListModPackageIds.Clear();
+                    BlackListModPackageIds.Clear();
                     SoundDefOf.Checkbox_TurnedOn.PlayOneShotOnCamera();
                 }
-                else if (WhiteListModPackageIds.Count == 0)
+                else if (BlackListModPackageIds.Count == 0)
                 {
                     foreach (var mod in AllMods)
                     {
-                        WhiteListModPackageIds.Add(mod.PackageId);
+                        BlackListModPackageIds.Add(mod.PackageId);
                     }
                     SoundDefOf.Checkbox_TurnedOff.PlayOneShotOnCamera();
                 }
                 else
                 {
                     int threshold = AllMods.Count / 2;
-                    if (WhiteListModPackageIds.Count < threshold)
+                    if (BlackListModPackageIds.Count < threshold)
                     {
                         foreach (var mod in AllMods)
                         {
-                            WhiteListModPackageIds.Add(mod.PackageId);
+                            BlackListModPackageIds.Add(mod.PackageId);
                         }
                         SoundDefOf.Checkbox_TurnedOff.PlayOneShotOnCamera();
                     }
                     else
                     {
-                        WhiteListModPackageIds.Clear();
+                        BlackListModPackageIds.Clear();
                         SoundDefOf.Checkbox_TurnedOn.PlayOneShotOnCamera();
                     }
                 }
-                
-
             }
             SearchText = Widgets.TextField(searchRect, SearchText);
 
@@ -126,6 +125,9 @@ namespace AutoTranslation
                     string.IsNullOrEmpty(SearchText) || m.Name.ToLower().Contains(SearchText.ToLower()) ||
                     m.PackageId.ToLower().Contains(SearchText.ToLower()))
                 .ToList();
+
+            // 번역 통계 가져오기
+            var translationStats = InjectionManager.GetTranslationStatsByPackageId();
 
             for (int i = 0; i < filteredMods.Count; i++)
             {
@@ -140,17 +142,25 @@ namespace AutoTranslation
 #else
                 Widgets.ButtonImage(new Rect(0f, 0f, entryHeight, entryHeight), curMod.ModMetaData?.Icon ?? BaseContent.BadTex);
 #endif
-                InjectionManager.MissingCountByPackageId.TryGetValue(curMod.ModMetaData?.PackageId ?? "", out var cnt);
-                
 
-                var tmp = !WhiteListModPackageIds.Contains(curMod.PackageId);
+                // 통계 정보 가져오기
+                translationStats.TryGetValue(curMod.PackageId ?? "", out var stats);
+                int completedDefs = stats.Item1;
+                int completedKeyed = stats.Item2;
+                int totalDefs = stats.Item3;
+                int totalKeyed = stats.Item4;
+
+                // 완료된 번역 / 총 번역 형식으로 표시
+                string statText = $"{completedDefs}/{totalDefs} + {completedKeyed}/{totalKeyed}";
+
+                var tmp = !BlackListModPackageIds.Contains(curMod.PackageId);
                 var tmp2 = tmp;
-                Widgets.CheckboxLabeled(labelRect, $"{curMod.Name}:::{curMod.PackageId}:::{cnt.Item1}+{cnt.Item2}", ref tmp);
+                Widgets.CheckboxLabeled(labelRect, $"{curMod.Name}:::{curMod.PackageId}:::{statText}", ref tmp);
                 if (tmp != tmp2)
                 {
                     if (!tmp)
                     {
-                        WhiteListModPackageIds.Add(curMod.PackageId);
+                        BlackListModPackageIds.Add(curMod.PackageId);
                         if (TranslatorManager._queue.Count == 0)
                         {
                             InjectionManager.UndoInjectMissingDefInjection(curMod);
@@ -162,7 +172,7 @@ namespace AutoTranslation
                             Messages.Message("AT_Message_WhiteList_Failed".Translate(), MessageTypeDefOf.NegativeEvent);
                         }
                     }
-                    else if (WhiteListModPackageIds.Remove(curMod.PackageId))
+                    else if (BlackListModPackageIds.Remove(curMod.PackageId))
                     {
                         if (TranslatorManager._queue.Count == 0)
                         {
@@ -175,7 +185,26 @@ namespace AutoTranslation
                         }
                     }
                 }
-                
+
+                // 재번역 버튼 추가
+                if (BlackListModPackageIds.Contains(curMod.PackageId))
+                {
+                    var curRetranslateRect = new Rect(retranslateButtonRect.x, 0f, retranslateButtonRect.width, retranslateButtonRect.height);
+                    if (Widgets.ButtonText(curRetranslateRect, "AT_Setting_Retranslate".Translate()))
+                    {
+                        if (TranslatorManager._queue.Count == 0)
+                        {
+                            BlackListModPackageIds.Remove(curMod.PackageId);
+                            InjectionManager.RetranslateMod(curMod);
+                        }
+                        else
+                        {
+                            Messages.Message("AT_Message_RetranslateFailed".Translate(), MessageTypeDefOf.NegativeEvent);
+                        }
+
+                    }
+                }
+
                 GUI.EndGroup();
             }
 
@@ -271,7 +300,8 @@ namespace AutoTranslation
                 {
                     ait.ResetSettings();
                 }
-                var s = targetTranslator.TryTranslate(TestText, out TestResultText);
+                // Use the skipRetry parameter for testing to avoid hanging the UI
+                var s = targetTranslator.TryTranslate(TestText, out TestResultText, true);
                 if (!s)
                 {
                     Messages.Message("AT_Message_TestFailed".Translate(), MessageTypeDefOf.NegativeEvent);
