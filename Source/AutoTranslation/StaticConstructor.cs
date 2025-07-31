@@ -17,7 +17,7 @@ namespace AutoTranslation
         static StaticConstructor()
         {
             var t = string.Empty;
-            var flag = TranslatorManager.CurrentTranslator?.TryTranslate("Hello, World!", out t);
+            var flag = TranslatorManager.CurrentTranslator?.TryTranslate("Hello, World!", out t, true);
             Log.Message(AutoTranslation.LogPrefix + $"Translator test: Hello, World! => {(flag == true ? t : "FAILED!")}");
             Log.Message(AutoTranslation.LogPrefix + $"Elapsed time during loading: {AutoTranslation.sw.ElapsedMilliseconds}ms, untranslated defInjections: {InjectionManager.defInjectedMissing.Count}, untranslated keyeds: {InjectionManager.keyedMissing.Count}");
         }

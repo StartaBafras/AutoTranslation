@@ -34,6 +34,10 @@
     <AT_Setting_WhiteList>번역할 모드 선택 (실시간으로 반영됩니다)</AT_Setting_WhiteList>
     <AT_Setting_ResetTranslationCache>저장된 번역 데이터 삭제</AT_Setting_ResetTranslationCache>
     <AT_Setting_ToggleAll>전체 켜기/끄기</AT_Setting_ToggleAll>
+
+    <AT_Setting_Retranslate>재번역</AT_Setting_Retranslate>
+    <AT_Message_RetranslateFailed>번역 작업이 진행 중인 상태에서는 재번역을 할 수 없습니다.</AT_Message_RetranslateFailed>
+    <AT_Message_RetranslateSuccess>{0} 모드가 성공적으로 번역 큐에 추가되었습니다.</AT_Message_RetranslateSuccess>
     
 
     <AT_Message_ResetDefCache>Def 캐시가 초기화 되었습니다!</AT_Message_ResetDefCache>

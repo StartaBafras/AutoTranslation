@@ -15,5 +15,6 @@ namespace AutoTranslation.Translators
 
         void Prepare();
         bool TryTranslate(string text, out string translated);
+        bool TryTranslate(string text, out string translated, bool skipRetry);
     }
 }

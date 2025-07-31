@@ -177,20 +177,19 @@ namespace AutoTranslation
             _cacheSaver = new Timer(state =>
             {
                 if (!Working) return;
-                if (_cacheCount != CachedTranslations.Count)
+                try
                 {
-                    try
+                    CacheFileTool.Export(nameof(CachedTranslations), new Dictionary<string, string>(CachedTranslations));
+                    if (_cacheCount != CachedTranslations.Count)
                     {
-                        CacheFileTool.Export(nameof(CachedTranslations), new Dictionary<string, string>(CachedTranslations));
+                        Log.Message(AutoTranslation.LogPrefix +
+                                    $"Translation cache saved to your disk. translated: {CachedTranslations.Count}");
+                        _cacheCount = CachedTranslations.Count;
                     }
-                    catch (Exception e)
-                    {
-                        Log.Message($"ERROR: {e.Message}");
-                    }
-
-                    Log.Message(AutoTranslation.LogPrefix +
-                                $"Translation cache saved to your disk. translated: {CachedTranslations.Count}");
-                    _cacheCount = CachedTranslations.Count;
+                }
+                catch (Exception e)
+                {
+                    Log.Message($"ERROR: {e.Message}");
                 }
             }, null, 0, 60000);
         }
